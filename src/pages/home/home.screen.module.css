@@ -4,3 +4,7 @@
   flex-direction: column;
   background: var(--color-slate-50);
 }
+.content {
+  display: flex;
+  flex: 1;
+}

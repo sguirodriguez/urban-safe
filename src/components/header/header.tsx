@@ -7,7 +7,7 @@ import styles from './header.module.css';
 
 export function Header() {
   const { user, logout } = useAuth();
-  const [location] = useState('São Paulo, SP');
+  const [location] = useState('Sorocaba, SP');
 
   return (
     <header className={styles.header}>

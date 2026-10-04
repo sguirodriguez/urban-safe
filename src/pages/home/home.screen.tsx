@@ -1,4 +1,6 @@
 import { Header } from '@/components/header/header';
+import { Sidebar } from '@/components/sidebar/sidebar';
+import { MapView } from '@/components/map-view/map-view';
 import styles from './home.screen.module.css';
 import stylesM from '@/components/modal/modal.module.css';
 import { Button } from '@/components/button/button';
@@ -6,6 +8,23 @@ import { useState } from 'react';
 import { Modal } from '@/components/modal/modal.tsx';
 import { X, Target, AlertTriangle, Flame, MapPin, Upload, Compass, ArrowRight } from 'lucide-react';
 
+export function HomeScreen() {
+  const [isReportOpen, setIsReportOpen] = useState(false);
+
+  return (
+    <div className={styles.root}>
+      <Header />
+      <div className={styles.content}>
+        <Sidebar onOpenReport={() => setIsReportOpen(true)} />
+        <MapView onOpenReport={() => setIsReportOpen(true)} />
+      </div>
+      
+      <Modal isOpen={isReportOpen} onClose={() => setIsReportOpen(false)}>
+        <ReportForm onClose={() => setIsReportOpen(false)} />
+      </Modal>
+    </div>
+  );
+}
 
 
 
@@ -85,25 +104,6 @@ function ReportForm({ onClose }: { onClose: () => void }) {
         </Button>
       </div>
     </>
-  );
-}
-export function HomeScreen() {
-  const [isReportOpen, setIsReportOpen] = useState(false);
-
-  return (
-    <div className={styles.root}>
-      <Header />
-
-      <div className="Button">
-        <Button onClick={() => setIsReportOpen(true)}>
-          + Reportar Perigo
-        </Button>
-      </div>
-
-      <Modal isOpen={isReportOpen} onClose={() => setIsReportOpen(false)}>
-        <ReportForm onClose={() => setIsReportOpen(false)} />
-      </Modal>
-    </div>
   );
 }
 

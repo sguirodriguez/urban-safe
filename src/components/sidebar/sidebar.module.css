@@ -1,0 +1,133 @@
+.sidebar {
+    width: 320px;
+    flex-shrink: 0;
+    padding: 1.5rem;
+    border-right: 1px solid var(--color-slate-200);
+    background: var(--color-white);
+    display: flex;
+    flex-direction:column;
+    gap: 1.5rem;
+}
+
+.eyebrown {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--color-slate-400);
+}
+
+.title {
+    margin: 0.25rem 0 0.5rem;
+    font-size: 1.5rem;
+}
+
+.description {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-slate-500);
+}
+
+.statsCard {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: var(--color-slate-50);
+}
+
+.statsNumber {
+    display: block;
+    font-size: 1.75rem;
+    color: var(--color-brand-600);
+}
+
+.statsLabel {
+    font-size: 0.75rem;
+    color: var(--color-slate-500);
+}
+
+.liveBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-brand-600);
+}
+
+.filtersBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.filtersLabel {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-slate-400);
+    letter-spacing: 0.05em;
+}
+
+.filterList {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.filterItem {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: none;
+    border-radius: 0.5rem;
+    background: transparent;
+    font-size: 0.875rem;
+    font-family: inherit;
+    text-align: left;
+    color: var(--color-slate-700);
+}
+
+.filterItem:hover {
+    background: var(--color-slate-100);
+}
+
+.filterItem.active {
+    background: var(--color-brand-100);
+    color: var(--color-brand-600);
+    font-weight: 600;
+}
+
+.filterIcon {
+    display: inline-flex;
+}
+
+.filterLabel {
+    flex: 1;
+}
+
+.filterCount {
+    font-size: 0.75rem;
+    color: var(--color-slate-400);
+}
+
+.safetyCard {
+    display: flex;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: var(--color-slate-50);
+}
+
+.safetyCard p {
+    margin: 0.125rem 0 0;
+    font-size: 0.8rem;
+    color: var(--color-slate-500);
+}
+
+.safetyIcon {
+    color: var(--color-brand-500);
+    flex-shrink: 0;
+}
