@@ -1,114 +1,125 @@
 import { Header } from '@/components/header/header';
-import { Sidebar } from '@/components/sidebar/sidebar';
 import { MapView } from '@/components/map-view/map-view';
+import { Modal } from '@/components/modal/modal';
+import { Sidebar } from '@/components/sidebar/sidebar';
+import { listCategories } from '@/shared/api/categories';
+import { listEvents } from '@/shared/api/events';
+import { listNeighborhoods } from '@/shared/api/neighborhoods';
+import { handleError } from '@/shared/helpers/handle-error';
+import type { AlertEvent, Category, Neighborhood } from '@/shared/types';
+import { useEffect, useState } from 'react';
 import styles from './home.screen.module.css';
-import stylesM from '@/components/modal/modal.module.css';
-import { Button } from '@/components/button/button';
-import { useState } from 'react';
-import { Modal } from '@/components/modal/modal.tsx';
-import { X, Target, AlertTriangle, Flame, MapPin, Upload, Compass, ArrowRight } from 'lucide-react';
+import { ReportForm } from './report-form';
 
 export function HomeScreen() {
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
+  const [events, setEvents] = useState<AlertEvent[]>([]);
+  const [neighborhoodId, setNeighborhoodId] = useState<number | null>(null);
+  const [categoryId, setCategoryId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCatalog() {
+      try {
+        const [nextCategories, nextNeighborhoods] = await Promise.all([
+          listCategories(),
+          listNeighborhoods(),
+        ]);
+        if (!active) return;
+        setCategories(nextCategories);
+        setNeighborhoods(nextNeighborhoods);
+      } catch (error) {
+        if (active) handleError(error);
+      }
+    }
+
+    loadCatalog();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadEvents() {
+      try {
+        const nextEvents = await listEvents(neighborhoodId ?? undefined);
+        if (!active) return;
+        setEvents(nextEvents);
+      } catch (error) {
+        if (active) handleError(error);
+      }
+    }
+
+    loadEvents();
+
+    return () => {
+      active = false;
+    };
+  }, [neighborhoodId]);
+
+  const visibleEvents = categoryId
+    ? events.filter((event) => event.categoryId === categoryId)
+    : events;
+
+  async function reloadEvents() {
+    try {
+      setEvents(await listEvents(neighborhoodId ?? undefined));
+    } catch (error) {
+      handleError(error);
+    }
+  }
+
+  async function handleCreated() {
+    setIsReportOpen(false);
+    try {
+      const [nextEvents, nextNeighborhoods] = await Promise.all([
+        listEvents(neighborhoodId ?? undefined),
+        listNeighborhoods(),
+      ]);
+      setEvents(nextEvents);
+      setNeighborhoods(nextNeighborhoods);
+    } catch (error) {
+      handleError(error);
+    }
+  }
 
   return (
     <div className={styles.root}>
-      <Header />
+      <Header
+        neighborhoods={neighborhoods}
+        neighborhoodId={neighborhoodId}
+        onNeighborhoodChange={setNeighborhoodId}
+      />
       <div className={styles.content}>
-        <Sidebar onOpenReport={() => setIsReportOpen(true)} />
-        <MapView onOpenReport={() => setIsReportOpen(true)} />
+        <Sidebar
+          categories={categories}
+          events={events}
+          categoryId={categoryId}
+          onCategoryChange={setCategoryId}
+          onOpenReport={() => setIsReportOpen(true)}
+        />
+        <MapView
+          categories={categories}
+          neighborhoods={neighborhoods}
+          events={visibleEvents}
+          onOpenReport={() => setIsReportOpen(true)}
+          onConfirmed={reloadEvents}
+        />
       </div>
-      
+
       <Modal isOpen={isReportOpen} onClose={() => setIsReportOpen(false)}>
-        <ReportForm onClose={() => setIsReportOpen(false)} />
+        <ReportForm
+          categories={categories}
+          onClose={() => setIsReportOpen(false)}
+          onCreated={handleCreated}
+        />
       </Modal>
     </div>
   );
 }
-
-
-
-function ReportForm({ onClose }: { onClose: () => void }) {
-
-  return (
-    <>
-      <div className={stylesM.modalHeader}>
-        <span className={stylesM.kicker}>NOVO ALERTA</span>
-        <button onClick={(onClose)} className={stylesM.closeBtn}>
-          <X size={20} />
-        </button>
-      </div>
-
-      <h2 className={stylesM.modalTitle}>Reportar ocorrência</h2>
-      <p className={stylesM.modalSubtitle}>Ajude sua comunidade com informações precisas.</p>
-
-      <div className={stylesM.formGroup}>
-        <label className={stylesM.label}>Qual é o tipo de ocorrência?</label>
-        <div className={stylesM.typeGrid}>
-          <button type="button" className={`${stylesM.typeCard} ${stylesM.typeCardActive}`}>
-            <Target size={24} className={stylesM.typeIcon} />
-            <span>Furto</span>
-          </button>
-          <button type="button" className={stylesM.typeCard}>
-            <AlertTriangle size={24} className={stylesM.typeIcon} />
-            <span>Assalto</span>
-          </button>
-          <button type="button" className={stylesM.typeCard}>
-            <Flame size={24} className={stylesM.typeIcon} />
-            <span>Tiroteio</span>
-          </button>
-        </div>
-      </div>
-
-      <div className={stylesM.formGroup}>
-        <label className={stylesM.label}>O que aconteceu?</label>
-        <textarea
-          className={stylesM.textarea}
-          placeholder="Descreva brevemente o que você viu..."
-          rows={4}
-        />
-      </div>
-
-      <div className={stylesM.formGroup}>
-        <label className={stylesM.label}>Onde aconteceu?</label>
-        <div className={stylesM.inputWrapper}>
-          <MapPin size={20} className={stylesM.inputIcon} />
-          <input
-            type="text"
-            className={stylesM.inputWithIcon}
-            placeholder="Digite um endereço"
-          />
-          <button type="button" className={stylesM.locationBtn}>
-            <Compass size={18} />
-          </button>
-        </div>
-        <span className={stylesM.helperText}>Ou use a localização do seu dispositivo</span>
-      </div>
-
-      <div className={stylesM.formGroup}>
-        <label className={stylesM.label}>
-          Foto <span className={stylesM.optional}>opcional</span>
-        </label>
-        <button type="button" className={stylesM.uploadArea}>
-          <Upload size={20} />
-          <span>Clique para adicionar uma foto</span>
-        </button>
-      </div>
-
-      <div className={styles.modalFooter}>
-        <Button variant="ghost" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button>
-          Publicar alerta <ArrowRight size={18} />
-        </Button>
-      </div>
-    </>
-  );
-}
-
-
-
-
-
-

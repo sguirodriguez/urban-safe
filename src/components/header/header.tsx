@@ -1,23 +1,43 @@
 import { Logo } from '@/components/logo/logo';
 import { Button } from '@/components/button/button';
 import { useAuth } from '@/shared/context/auth-context';
-import { LogOut, MapPin, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import type { Neighborhood } from '@/shared/types';
+import { ChevronDown, LogOut, MapPin } from 'lucide-react';
 import styles from './header.module.css';
 
-export function Header() {
+type HeaderProps = {
+  neighborhoods: Neighborhood[];
+  neighborhoodId: number | null;
+  onNeighborhoodChange: (id: number | null) => void;
+};
+
+export function Header({ neighborhoods, neighborhoodId, onNeighborhoodChange }: HeaderProps) {
   const { user, logout } = useAuth();
-  const [location] = useState('Sorocaba, SP');
 
   return (
     <header className={styles.header}>
       <Logo />
 
-      <div className={styles.location}>
+      <label className={styles.location}>
         <MapPin size={16} className={styles.pin} />
-        <span>{location}</span>
+        <select
+          className={styles.locationSelect}
+          value={neighborhoodId ?? ''}
+          aria-label="Filtrar por bairro"
+          onChange={(event) => {
+            const value = event.target.value;
+            onNeighborhoodChange(value ? Number(value) : null);
+          }}
+        >
+          <option value="">Todos os bairros</option>
+          {neighborhoods.map((neighborhood) => (
+            <option key={neighborhood.id} value={neighborhood.id}>
+              {neighborhood.name}, {neighborhood.city} - {neighborhood.state}
+            </option>
+          ))}
+        </select>
         <ChevronDown size={15} className={styles.chevron} />
-      </div>
+      </label>
 
       <div className={styles.right}>
         <span className={styles.avatar}>

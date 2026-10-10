@@ -32,6 +32,16 @@
   color: var(--color-brand-500);
 }
 
+.locationSelect {
+  max-width: 14rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+
 .chevron {
   color: var(--color-slate-300);
 }
