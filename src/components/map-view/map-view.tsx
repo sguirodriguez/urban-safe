@@ -1,12 +1,11 @@
 import { Button } from '@/components/button/button';
-import { confirmEvent } from '@/shared/api/events';
-import { handleError } from '@/shared/helpers/handle-error';
-import { notifyError, notifySuccess } from '@/shared/helpers/notify';
-import type { AlertEvent, Category, ConfirmationType, EventStatus, Neighborhood } from '@/shared/types';
+import { notifyError } from '@/shared/helpers/notify';
+import { categoryIcon } from '@/shared/helpers/category-icon';
+import type { AlertEvent, Category, EventStatus, Neighborhood } from '@/shared/types';
 import { divIcon } from 'leaflet';
-import { LocateFixed, Plus } from 'lucide-react';
+import { LocateFixed, Plus, SlidersHorizontal, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import styles from './map-view.module.css';
 
@@ -15,7 +14,8 @@ type MapViewProps = {
   neighborhoods: Neighborhood[];
   events: AlertEvent[];
   onOpenReport: () => void;
-  onConfirmed: () => void;
+  onToggleFilters: () => void;
+  onCloseFilters: () => void;
 };
 
 const STATUS_LABELS: Record<EventStatus, string> = {
@@ -33,6 +33,21 @@ function createMarkerIcon(color: string) {
     className: styles.marker,
     iconSize: [16, 16],
   });
+}
+
+function formatCreatedAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date);
+}
+
+function formatCep(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length !== 8) return value;
+  return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
 
 function ShowEvents({ events }: { events: AlertEvent[] }) {
@@ -59,19 +74,70 @@ function FlyTo({ target }: { target: { position: [number, number]; token: number
   return null;
 }
 
+function RevealSelected({ event }: { event: AlertEvent | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!event) return;
+    const zoom = Math.max(map.getZoom(), 15);
+    const projected = map.project([event.latitude, event.longitude], zoom);
+    const narrow = window.matchMedia('(max-width: 767px)').matches;
+    const shifted = projected.add([narrow ? 0 : 140, narrow ? -120 : 0]);
+    map.panTo(map.unproject(shifted, zoom), { animate: true });
+  }, [event, map]);
+
+  return null;
+}
+
+function CloseOnMapClick({ active, onClose }: { active: boolean; onClose: () => void }) {
+  useMapEvents({
+    click(event) {
+      if (!active) return;
+      const target = event.originalEvent.target;
+      if (target instanceof Element && target.closest('.leaflet-marker-icon')) return;
+      onClose();
+    },
+  });
+
+  return null;
+}
+
 export function MapView({
   categories,
   neighborhoods,
   events,
   onOpenReport,
-  onConfirmed,
+  onToggleFilters,
+  onCloseFilters,
 }: MapViewProps) {
   const [focus, setFocus] = useState<{ position: [number, number]; token: number } | null>(null);
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const center: [number, number] = events.length
     ? [events[0].latitude, events[0].longitude]
     : DEFAULT_CENTER;
+
+  const selected = events.find((event) => event.id === selectedId) ?? null;
+  const selectedCategory = selected
+    ? categories.find((item) => item.id === selected.categoryId)
+    : undefined;
+  const selectedNeighborhood = selected
+    ? neighborhoods.find((item) => item.id === selected.neighborhoodId)
+    : undefined;
+  const SelectedIcon = selectedCategory
+    ? categoryIcon(selectedCategory.icon, selectedCategory.slug)
+    : null;
+
+  useEffect(() => {
+    if (!selectedId) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSelectedId(null);
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedId]);
 
   function handleLocate() {
     if (!navigator.geolocation) {
@@ -90,19 +156,6 @@ export function MapView({
     );
   }
 
-  async function handleConfirmation(eventId: string, type: ConfirmationType) {
-    setPendingId(eventId);
-    try {
-      await confirmEvent(eventId, type);
-      notifySuccess(type === 'confirmar' ? 'Alerta confirmado' : 'Alerta denunciado');
-      onConfirmed();
-    } catch (error) {
-      handleError(error);
-    } finally {
-      setPendingId(null);
-    }
-  }
-
   return (
     <section className={styles.mapSection}>
       <div className={styles.header}>
@@ -112,8 +165,24 @@ export function MapView({
         </div>
 
         <div className={styles.actions}>
-          <Button variant="secondary" size="md" icon={<LocateFixed size={16} />} onClick={handleLocate}>
-            Minha localização
+          <div className={styles.filtersButton}>
+            <Button
+              variant="secondary"
+              size="md"
+              icon={<SlidersHorizontal size={16} />}
+              onClick={onToggleFilters}
+            >
+              Filtros
+            </Button>
+          </div>
+          <Button
+            variant="secondary"
+            size="md"
+            icon={<LocateFixed size={16} />}
+            onClick={handleLocate}
+            aria-label="Minha localização"
+          >
+            <span className={styles.locateLabel}>Minha localização</span>
           </Button>
           <Button variant="primary" size="md" icon={<Plus size={16} />} onClick={onOpenReport}>
             Reportar
@@ -129,10 +198,11 @@ export function MapView({
           />
           <ShowEvents events={events} />
           <FlyTo target={focus} />
+          <RevealSelected event={selected} />
+          <CloseOnMapClick active={selected !== null} onClose={() => setSelectedId(null)} />
 
           {events.map((event) => {
             const category = categories.find((item) => item.id === event.categoryId);
-            const neighborhood = neighborhoods.find((item) => item.id === event.neighborhoodId);
             const color = category?.color ?? '#64748b';
 
             return (
@@ -140,39 +210,13 @@ export function MapView({
                 key={event.id}
                 position={[event.latitude, event.longitude]}
                 icon={createMarkerIcon(color)}
-              >
-                <Popup>
-                  <div className={styles.popup}>
-                    <strong className={styles.popupTitle}>{category?.name ?? 'Alerta'}</strong>
-                    <p className={styles.popupDescription}>{event.description}</p>
-                    <span className={styles.popupMeta}>
-                      {event.street}, {event.streetNumber}
-                      {neighborhood ? ` · ${neighborhood.name}` : ''}
-                    </span>
-                    <span className={styles.popupMeta}>{STATUS_LABELS[event.status]}</span>
-                    <div className={styles.popupActions}>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="primary"
-                        disabled={pendingId === event.id}
-                        onClick={() => handleConfirmation(event.id, 'confirmar')}
-                      >
-                        Confirmar
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        disabled={pendingId === event.id}
-                        onClick={() => handleConfirmation(event.id, 'denunciar')}
-                      >
-                        Denunciar
-                      </Button>
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
+                eventHandlers={{
+                  click: () => {
+                    onCloseFilters();
+                    setSelectedId(event.id);
+                  },
+                }}
+              />
             );
           })}
         </MapContainer>
@@ -195,6 +239,73 @@ export function MapView({
             {events.length} {events.length === 1 ? 'alerta nesta área' : 'alertas nesta área'}
           </span>
         </div>
+
+        {selected && (
+          <>
+            <div className={styles.panelBackdrop} />
+            <aside className={styles.panel} role="dialog" aria-modal="true" aria-labelledby="event-detail-title">
+              <div className={styles.panelHeader}>
+                {SelectedIcon && (
+                  <span
+                    className={styles.panelIcon}
+                    style={{ backgroundColor: selectedCategory?.color ?? '#64748b' }}
+                  >
+                    <SelectedIcon size={18} />
+                  </span>
+                )}
+                <div className={styles.panelHeading}>
+                  <span className={styles.panelEyebrow}>Ponto de perigo</span>
+                  <h3 id="event-detail-title" className={styles.panelTitle}>
+                    {selectedCategory?.name ?? 'Alerta'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className={styles.panelClose}
+                  aria-label="Fechar"
+                  onClick={() => setSelectedId(null)}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className={styles.panelDescription}>{selected.description}</p>
+
+              <dl className={styles.panelFacts}>
+                <div className={styles.panelFact}>
+                  <dt>Endereço</dt>
+                  <dd>
+                    {selected.street}, {selected.streetNumber}
+                  </dd>
+                </div>
+                {selectedNeighborhood && (
+                  <div className={styles.panelFact}>
+                    <dt>Bairro</dt>
+                    <dd>
+                      {selectedNeighborhood.name}, {selectedNeighborhood.city} - {selectedNeighborhood.state}
+                    </dd>
+                  </div>
+                )}
+                {selected.cep && (
+                  <div className={styles.panelFact}>
+                    <dt>CEP</dt>
+                    <dd>{formatCep(selected.cep)}</dd>
+                  </div>
+                )}
+                <div className={styles.panelFact}>
+                  <dt>Status</dt>
+                  <dd>
+                    <span className={styles.panelStatus}>{STATUS_LABELS[selected.status]}</span>
+                  </dd>
+                </div>
+                <div className={styles.panelFact}>
+                  <dt>Registrado em</dt>
+                  <dd>{formatCreatedAt(selected.createdAt)}</dd>
+                </div>
+              </dl>
+            </aside>
+          </>
+        )}
       </div>
     </section>
   );

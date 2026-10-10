@@ -13,6 +13,7 @@ import { ReportForm } from './report-form';
 
 export function HomeScreen() {
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>([]);
   const [events, setEvents] = useState<AlertEvent[]>([]);
@@ -67,14 +68,6 @@ export function HomeScreen() {
     ? events.filter((event) => event.categoryId === categoryId)
     : events;
 
-  async function reloadEvents() {
-    try {
-      setEvents(await listEvents(neighborhoodId ?? undefined));
-    } catch (error) {
-      handleError(error);
-    }
-  }
-
   async function handleCreated() {
     setIsReportOpen(false);
     try {
@@ -97,19 +90,33 @@ export function HomeScreen() {
         onNeighborhoodChange={setNeighborhoodId}
       />
       <div className={styles.content}>
+        {isFiltersOpen && (
+          <button
+            type="button"
+            className={styles.backdrop}
+            aria-label="Fechar filtros"
+            onClick={() => setIsFiltersOpen(false)}
+          />
+        )}
         <Sidebar
           categories={categories}
           events={events}
           categoryId={categoryId}
+          open={isFiltersOpen}
+          onClose={() => setIsFiltersOpen(false)}
           onCategoryChange={setCategoryId}
-          onOpenReport={() => setIsReportOpen(true)}
+          onOpenReport={() => {
+            setIsFiltersOpen(false);
+            setIsReportOpen(true);
+          }}
         />
         <MapView
           categories={categories}
           neighborhoods={neighborhoods}
           events={visibleEvents}
           onOpenReport={() => setIsReportOpen(true)}
-          onConfirmed={reloadEvents}
+          onToggleFilters={() => setIsFiltersOpen((open) => !open)}
+          onCloseFilters={() => setIsFiltersOpen(false)}
         />
       </div>
 

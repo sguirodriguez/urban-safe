@@ -1,10 +1,30 @@
 .root {
   display: flex;
-  height: 100vh;
+  height: 100dvh;
   flex-direction: column;
+  overflow: hidden;
   background: var(--color-slate-50);
 }
+
 .content {
   display: flex;
   flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.backdrop {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 4rem 0 0 0;
+    z-index: 1290;
+    border: none;
+    padding: 0;
+    background: rgb(15 23 42 / 0.45);
+  }
 }

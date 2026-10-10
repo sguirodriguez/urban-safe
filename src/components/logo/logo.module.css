@@ -21,6 +21,12 @@
   color: var(--color-slate-800);
 }
 
+@media (max-width: 400px) {
+  .text {
+    display: none;
+  }
+}
+
 .dot {
   color: var(--color-brand-500);
 }

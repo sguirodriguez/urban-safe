@@ -1,13 +1,15 @@
 import { Button } from '@/components/button/button';
 import { categoryIcon } from '@/shared/helpers/category-icon';
 import type { AlertEvent, Category } from '@/shared/types';
-import { Navigation, Plus, ShieldCheck } from 'lucide-react';
+import { Navigation, Plus, ShieldCheck, X } from 'lucide-react';
 import styles from './sidebar.module.css';
 
 type SidebarProps = {
   categories: Category[];
   events: AlertEvent[];
   categoryId: number | null;
+  open: boolean;
+  onClose: () => void;
   onCategoryChange: (id: number | null) => void;
   onOpenReport: () => void;
 };
@@ -16,11 +18,25 @@ export function Sidebar({
   categories,
   events,
   categoryId,
+  open,
+  onClose,
   onCategoryChange,
   onOpenReport,
 }: SidebarProps) {
+  function selectCategory(id: number | null) {
+    onCategoryChange(id);
+    onClose();
+  }
+
   return (
-    <aside className={styles.sidebar}>
+    <aside className={`${styles.sidebar} ${open ? styles.open : ''}`}>
+      <div className={styles.mobileBar}>
+        <span className={styles.filtersLabel}>Filtros</span>
+        <button type="button" className={styles.closeButton} aria-label="Fechar filtros" onClick={onClose}>
+          <X size={18} />
+        </button>
+      </div>
+
       <div className={styles.intro}>
         <span className={styles.eyebrown}>Painel da cidade</span>
         <h1 className={styles.title}>Visão geral</h1>
@@ -45,7 +61,7 @@ export function Sidebar({
         <nav className={styles.filterList}>
           <button
             type="button"
-            onClick={() => onCategoryChange(null)}
+            onClick={() => selectCategory(null)}
             className={`${styles.filterItem} ${categoryId === null ? styles.active : ''}`}
           >
             <span className={styles.filterLabel}>Todos os alertas</span>
@@ -60,7 +76,7 @@ export function Sidebar({
               <button
                 key={category.id}
                 type="button"
-                onClick={() => onCategoryChange(category.id)}
+                onClick={() => selectCategory(category.id)}
                 className={`${styles.filterItem} ${categoryId === category.id ? styles.active : ''}`}
               >
                 <span className={styles.filterIcon} style={{ color: category.color }}>

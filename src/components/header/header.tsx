@@ -44,8 +44,8 @@ export function Header({ neighborhoods, neighborhoodId, onNeighborhoodChange }: 
           {(user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase()}
         </span>
         <div className={styles.logout}>
-          <Button variant="ghost" size="sm" icon={<LogOut size={16} />} onClick={logout}>
-            Sair
+          <Button variant="ghost" size="sm" icon={<LogOut size={16} />} onClick={logout} aria-label="Sair">
+            <span className={styles.logoutLabel}>Sair</span>
           </Button>
         </div>
       </div>

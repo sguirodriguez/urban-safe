@@ -281,4 +281,12 @@
   padding-top: 1.5rem;
 }
 
-/* Joseph was here */
+@media (max-width: 480px) {
+  .typeGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .fieldGrid {
+    grid-template-columns: 1fr;
+  }
+}
