@@ -1,6 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { Button } from '@/components/button/button';
 import { Logo } from '@/components/logo/logo';
+import { handleError } from '@/shared/helpers/handle-error';
+import { notifySuccess } from '@/shared/helpers/notify';
 import { useAuth } from '@/shared/context/auth-context';
 import { Mail, Lock, User, Shield, MapPin } from 'lucide-react';
 import styles from './auth.screen.module.css';
@@ -8,18 +10,28 @@ import styles from './auth.screen.module.css';
 export function AuthScreen() {
     const [isLogin, setIsLogin] = useState(true);
     const [name, setName] = useState('');
-    const [email, setEmail] = useState('teste@gmail.com');
-    const [password, setPassword] = useState('Teste@123');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [submitting, setSubmitting] = useState(false);
 
     const { login, signup, loading } = useAuth();
 
     async function handleSubmit(e: FormEvent<HTMLFormElement>) {
         e.preventDefault();
-        
-        if (isLogin){
-            await login(email, password);
-        }else {
-            await signup(name, email, password);
+        setSubmitting(true);
+
+        try {
+            if (isLogin) {
+                await login(email, password);
+                notifySuccess('Login realizado');
+            } else {
+                await signup(name, email, password);
+                notifySuccess('Conta criada');
+            }
+        } catch (error) {
+            handleError(error);
+        } finally {
+            setSubmitting(false);
         }
     }
 
@@ -124,7 +136,13 @@ export function AuthScreen() {
                             </div>
                         </div>
 
-                        <Button type="submit" size="lg" fullWidth className={styles.submitBtn}>
+                        <Button
+                            type="submit"
+                            size="lg"
+                            fullWidth
+                            className={styles.submitBtn}
+                            disabled={submitting}
+                        >
                             {isLogin ? 'Entrar na conta' : 'Cadastre-se →'}
                         </Button>
                     </form>
