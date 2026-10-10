@@ -1,6 +1,7 @@
 import { Button } from '@/components/button/button';
 import { createEvent } from '@/shared/api/events';
 import { geocode } from '@/shared/api/locations';
+import { reverseGeocode } from '@/shared/api/nominatim';
 import { lookupCep } from '@/shared/api/viacep';
 import { ApiError } from '@/shared/helpers/api-error';
 import { categoryIcon } from '@/shared/helpers/category-icon';
@@ -8,7 +9,7 @@ import { handleError } from '@/shared/helpers/handle-error';
 import { notifyError, notifySuccess } from '@/shared/helpers/notify';
 import type { Category, Coordinates } from '@/shared/types';
 import { divIcon, Marker as LeafletMarker, type LeafletEvent } from 'leaflet';
-import { ArrowRight, Compass, X } from 'lucide-react';
+import { ArrowRight, Compass, LocateFixed, X } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet';
 import styles from '@/components/modal/modal.module.css';
@@ -18,6 +19,28 @@ type ReportFormProps = {
   onClose: () => void;
   onCreated: () => void;
 };
+
+type AddressMode = 'manual' | 'device';
+
+function readDevicePosition(): Promise<Coordinates> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error('unavailable'));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      () => reject(new Error('denied')),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
+    );
+  });
+}
 
 const pinIcon = divIcon({
   html: '<span style="display:block;width:16px;height:16px;border-radius:9999px;background:#0d9488;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>',
@@ -52,6 +75,8 @@ export function ReportForm({ categories, onClose, onCreated }: ReportFormProps) 
   const [needsManualPin, setNeedsManualPin] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [lookingUpCep, setLookingUpCep] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [addressMode, setAddressMode] = useState<AddressMode>('manual');
 
   const lookedUpCep = useRef<string | null>(null);
   const geocodedKey = useRef<string | null>(null);
@@ -69,6 +94,8 @@ export function ReportForm({ categories, onClose, onCreated }: ReportFormProps) 
   addressKeyRef.current = addressKey;
 
   useEffect(() => {
+    if (addressMode === 'device') return;
+
     const [streetValue, numberValue, neighborhoodValue, cityValue, stateValue, cepValue] =
       addressKey.split('|');
     const complete = Boolean(
@@ -113,7 +140,7 @@ export function ReportForm({ categories, onClose, onCreated }: ReportFormProps) 
     }, 500);
 
     return () => window.clearTimeout(timer);
-  }, [addressKey, pin]);
+  }, [addressKey, pin, addressMode]);
 
   async function handleCepChange(value: string) {
     setCep(value);
@@ -136,25 +163,88 @@ export function ReportForm({ categories, onClose, onCreated }: ReportFormProps) 
     }
   }
 
-  function handleDeviceLocation() {
-    if (!navigator.geolocation) {
-      notifyError('Geolocalização não disponível neste navegador');
-      return;
-    }
+  function clearAddress() {
+    setCep('');
+    setStreet('');
+    setStreetNumber('');
+    setNeighborhood('');
+    setCity('');
+    setState('');
+    setPin(null);
+    setViewCenter(null);
+    setNeedsManualPin(false);
+    lookedUpCep.current = null;
+    geocodedKey.current = null;
+  }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const next = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
-        geocodedKey.current = addressKeyRef.current;
-        setNeedsManualPin(false);
-        setPin(next);
-        setViewCenter([next.latitude, next.longitude]);
-      },
-      () => notifyError('Não foi possível obter sua localização'),
-    );
+  function switchAddressMode(next: AddressMode) {
+    if (next === addressMode) return;
+    clearAddress();
+    setAddressMode(next);
+  }
+
+  async function handleMarkPin() {
+    try {
+      const next = await readDevicePosition();
+      geocodedKey.current = addressKeyRef.current;
+      setNeedsManualPin(false);
+      setPin(next);
+      setViewCenter([next.latitude, next.longitude]);
+    } catch (error) {
+      notifyError(
+        error instanceof Error && error.message === 'unavailable'
+          ? 'Geolocalização não disponível neste navegador'
+          : 'Não foi possível obter sua localização',
+      );
+    }
+  }
+
+  async function handleUseDeviceAddress() {
+    setLocating(true);
+    try {
+      const next = await readDevicePosition();
+      const reversed = await reverseGeocode(next.latitude, next.longitude);
+      let streetValue = reversed.street;
+      let neighborhoodValue = reversed.neighborhood;
+      let cityValue = reversed.city;
+      let stateValue = reversed.state;
+      const cepValue = reversed.cep;
+
+      if (cepValue.length === 8) {
+        try {
+          const viaCep = await lookupCep(cepValue);
+          lookedUpCep.current = cepValue;
+          if (viaCep.street) streetValue = viaCep.street;
+          if (viaCep.neighborhood) neighborhoodValue = viaCep.neighborhood;
+          if (viaCep.city) cityValue = viaCep.city;
+          if (viaCep.state) stateValue = viaCep.state;
+        } catch {
+          lookedUpCep.current = null;
+        }
+      }
+
+      setCep(cepValue);
+      setStreet(streetValue);
+      setStreetNumber(reversed.streetNumber);
+      setNeighborhood(neighborhoodValue);
+      setCity(cityValue);
+      setState(stateValue);
+      setNeedsManualPin(false);
+      setPin(next);
+      setViewCenter([next.latitude, next.longitude]);
+    } catch (error) {
+      if (error instanceof Error && (error.message === 'unavailable' || error.message === 'denied')) {
+        notifyError(
+          error.message === 'unavailable'
+            ? 'Geolocalização não disponível neste navegador'
+            : 'Não foi possível obter sua localização',
+        );
+      } else {
+        handleError(error);
+      }
+    } finally {
+      setLocating(false);
+    }
   }
 
   function handleDragEnd(event: LeafletEvent) {
@@ -254,6 +344,35 @@ export function ReportForm({ categories, onClose, onCreated }: ReportFormProps) 
 
       <div className={styles.formGroup}>
         <label className={styles.label}>Onde aconteceu?</label>
+        <div className={styles.modeSwitch}>
+          <button
+            type="button"
+            className={`${styles.modeOption} ${addressMode === 'manual' ? styles.modeOptionActive : ''}`}
+            onClick={() => switchAddressMode('manual')}
+          >
+            Digitar endereço
+          </button>
+          <button
+            type="button"
+            className={`${styles.modeOption} ${addressMode === 'device' ? styles.modeOptionActive : ''}`}
+            onClick={() => switchAddressMode('device')}
+          >
+            Minha localização
+          </button>
+        </div>
+
+        {addressMode === 'device' && (
+          <button
+            type="button"
+            className={styles.locateBtn}
+            onClick={handleUseDeviceAddress}
+            disabled={locating}
+          >
+            <LocateFixed size={16} />
+            {locating ? 'Buscando localização...' : 'Usar minha localização'}
+          </button>
+        )}
+
         <div className={styles.fieldGrid}>
           <label className={`${styles.field} ${styles.fieldFull}`}>
             <span className={styles.fieldLabel}>CEP</span>
@@ -313,23 +432,32 @@ export function ReportForm({ categories, onClose, onCreated }: ReportFormProps) 
           </label>
         </div>
 
-        <div className={styles.addressActions}>
-          <button
-            type="button"
-            className={styles.compassBtn}
-            onClick={handleDeviceLocation}
-            aria-label="Usar minha localização"
-          >
-            <Compass size={18} />
-          </button>
-          <span className={styles.inlineHint}>
-            {lookingUpCep
-              ? 'Buscando CEP...'
-              : needsManualPin
-                ? 'Marque o ponto com a bússola e arraste se precisar.'
-                : 'A bússola usa a localização do seu dispositivo.'}
+        {addressMode === 'manual' && lookingUpCep && (
+          <span className={styles.helperText}>Buscando CEP...</span>
+        )}
+
+        {addressMode === 'manual' && needsManualPin && (
+          <div className={styles.addressActions}>
+            <button type="button" className={styles.compassBtn} onClick={handleMarkPin}>
+              <Compass size={18} />
+            </button>
+            <span className={styles.inlineHint}>
+              Marque o ponto com a bússola e arraste se precisar.
+            </span>
+          </div>
+        )}
+
+        {addressMode === 'device' && (
+          <span className={styles.helperText}>
+            {locating
+              ? 'Buscando sua localização...'
+              : pin
+                ? streetNumber
+                  ? 'O ponto é a localização do seu dispositivo. Arraste se precisar.'
+                  : 'Confira o número. Ele nem sempre vem da localização.'
+                : 'Toque no botão para preencher o endereço com o aparelho.'}
           </span>
-        </div>
+        )}
 
         {pin && viewCenter && (
           <MapContainer center={viewCenter} zoom={16} className={styles.pinMap} scrollWheelZoom={false}>

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { NominatimError } from '@/shared/api/nominatim';
 import { ViaCepError } from '@/shared/api/viacep';
 import { ApiError } from '@/shared/helpers/api-error';
 import { notifyError } from '@/shared/helpers/notify';
@@ -27,7 +28,7 @@ function resolveMessage(error: unknown): string {
     return CODE_MESSAGES[error.code] ?? GENERIC_MESSAGE;
   }
 
-  if (error instanceof ViaCepError) {
+  if (error instanceof ViaCepError || error instanceof NominatimError) {
     return error.message;
   }
 
